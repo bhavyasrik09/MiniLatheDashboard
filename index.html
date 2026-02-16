@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PS2 - Hexagon Digital Twin</title>
+
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+
+<!-- Firebase SDK (compat version) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+  // ================= FIREBASE CONFIG =================
+  const firebaseConfig = {
+    apiKey: "AIzaSyCwYkwI7sJiWZc_UNv-hiUCYvWQ9Kac-pA",
+    authDomain: "minilathedigitaltwin.firebaseapp.com",
+    databaseURL: "https://minilathedigitaltwin-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "minilathedigitaltwin",
+    storageBucket: "minilathedigitaltwin.firebasestorage.app",
+    messagingSenderId: "117431183861",
+    appId: "1:117431183861:web:b798d793e20f064b8b18bc",
+    measurementId: "G-QBNC162995"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // ================= READ DATA IN REAL-TIME =================
+  db.ref("latheData/1").on("value", snapshot => {
+    const data = snapshot.val();
+    if (!data) return;
+
+    const tempElem = document.getElementById("temp");
+    const vibElem = document.getElementById("vibration");
+    const healthElem = document.getElementById("healthStatus");
+
+    temp = parseFloat(data.temperature);
+    vibration = parseFloat(data.vibration);
+
+    tempElem.innerText = temp.toFixed(1) + "°C";
+    vibElem.innerText = vibration.toFixed(2) + " g";
+
+    if (data.healthstatus === "NORMAL") {
+      healthElem.innerText = "Status: Healthy";
+      healthElem.className = "status green";
+    } else if (data.healthstatus === "WARNING") {
+      healthElem.innerText = "Status: Warning";
+      healthElem.className = "status yellow";
+    } else {
+      healthElem.innerText = "Status: Critical";
+      healthElem.className = "status red";
+    }
+
+    updateVisuals();
+  });
+
+  // ================= FETCH REAL-TIME DATA ON BUTTON CLICK =================
+  function fetchRealtimeData() {
+    db.ref("latheData/1").once("value").then(snapshot => {
+      const data = snapshot.val();
+      if (!data) return;
+
+      const tempElem = document.getElementById("temp");
+      const vibElem = document.getElementById("vibration");
+      const healthElem = document.getElementById("healthStatus");
+
+      const temp = parseFloat(data.temperature);
+      const vibration = parseFloat(data.vibration);
+
+      tempElem.innerText = temp.toFixed(1) + "°C";
+      vibElem.innerText = vibration.toFixed(2) + " g";
+
+      if (data.healthstatus === "NORMAL") {
+        healthElem.innerText = "Status: Healthy";
+        healthElem.className = "status green";
+      } else if (data.healthstatus === "WARNING") {
+        healthElem.innerText = "Status: Warning";
+        healthElem.className = "status yellow";
+      } else {
+        healthElem.innerText = "Status: Critical";
+        healthElem.className = "status red";
+      }
+
+      updateVisuals();
+    }).catch(err => console.error("Error fetching data:", err));
+  }
+</script>
+
+<style>
+body { margin:0; overflow:hidden; font-family:Arial; }
+
+#dashboard {
+  position:absolute;
+  left:20px;
+  top:20px;
+  width:280px;
+  background:white;
+  padding:20px;
+  border-radius:10px;
+  box-shadow:0 0 15px rgba(0,0,0,0.2);
+  z-index:10;
+}
+
+.status {
+  padding:8px;
+  margin-top:10px;
+  border-radius:5px;
+  color:white;
+  text-align:center;
+  font-weight:bold;
+}
+
+.green { background:green; }
+.yellow { background:orange; }
+.red { background:red; }
+
+button {
+  width:100%;
+  padding:8px;
+  margin-top:10px;
+  border:none;
+  border-radius:5px;
+  cursor:pointer;
+  font-weight:bold;
+}
+</style>
+
+<script>
+// ================= ROTATE (Mouse + Touch) =================
+AFRAME.registerComponent('drag-rotate', {
+  init: function () {
+    this.isDragging = false;
+    this.lastX = 0;
+    this.lastY = 0;
+
+    const el = this.el;
+    const sceneEl = this.el.sceneEl;
+
+    sceneEl.addEventListener('mousedown', (e) => {
+      this.isDragging = true;
+      this.lastX = e.clientX;
+      this.lastY = e.clientY;
+    });
+    sceneEl.addEventListener('mouseup', () => { this.isDragging = false; });
+    sceneEl.addEventListener('mousemove', (e) => {
+      if (!this.isDragging) return;
+      const deltaX = e.clientX - this.lastX;
+      const deltaY = e.clientY - this.lastY;
+      el.object3D.rotation.y += deltaX * 0.01;
+      el.object3D.rotation.x += deltaY * 0.01;
+      this.lastX = e.clientX;
+      this.lastY = e.clientY;
+    });
+
+    sceneEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        this.isDragging = true;
+        this.lastX = e.touches[0].clientX;
+        this.lastY = e.touches[0].clientY;
+      }
+    }, { passive: false });
+
+    sceneEl.addEventListener('touchend', () => { this.isDragging = false; });
+
+    sceneEl.addEventListener('touchmove', (e) => {
+      if (!this.isDragging || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - this.lastX;
+      const deltaY = touch.clientY - this.lastY;
+      el.object3D.rotation.y += deltaX * 0.01;
+      el.object3D.rotation.x += deltaY * 0.01;
+      this.lastX = touch.clientX;
+      this.lastY = touch.clientY;
+      e.preventDefault();
+    }, { passive: false });
+  }
+});
+
+// ================= ZOOM =================
+AFRAME.registerComponent('scroll-zoom', {
+  init: function () {
+    const camera = this.el;
+    window.addEventListener('wheel', function (event) {
+      event.preventDefault();
+      let position = camera.getAttribute('position');
+      position.z += event.deltaY * 0.002;
+      position.z = Math.max(1, Math.min(8, position.z));
+      camera.setAttribute('position', position);
+    }, { passive: false });
+  }
+});
+
+// ================= DIGITAL TWIN LOGIC =================
+let temp = 35;
+let vibration = 0.3;
+let targetTemp = 35;
+let targetVibration = 0.3;
+let simulationInterval = null;
+
+function setNormal() {
+  targetTemp = 40;
+  targetVibration = 0.5;
+  startSimulation();
+}
+
+function setHighVibration() {
+  targetTemp = 55;
+  targetVibration = 1.8;
+  startSimulation();
+}
+
+function setOverheat() {
+  targetTemp = 90;
+  targetVibration = 1.2;
+  startSimulation();
+}
+
+function startSimulation() {
+  if (simulationInterval) clearInterval(simulationInterval);
+
+  simulationInterval = setInterval(() => {
+    temp += (targetTemp - temp) * 0.05;
+    vibration += (targetVibration - vibration) * 0.05;
+
+    document.getElementById("temp").innerText = temp.toFixed(1) + "°C";
+    document.getElementById("vibration").innerText = vibration.toFixed(2) + " g";
+
+    updateVisuals();
+
+    if (Math.abs(temp - targetTemp) < 0.1 &&
+        Math.abs(vibration - targetVibration) < 0.05) {
+      clearInterval(simulationInterval);
+    }
+
+  }, 100);
+}
+
+function updateVisuals() {
+  let status = document.getElementById("healthStatus");
+  let model = document.querySelector("#latheModel");
+
+  let healthFactor = Math.min(1, (temp - 35) / 60);
+  let r = Math.floor(255 * healthFactor);
+  let g = Math.floor(255 * (1 - healthFactor));
+  let color = `rgb(${r},${g},0)`;
+
+  model.setAttribute("material", "color", color);
+
+  if (temp < 60 && vibration < 0.8) {
+    status.innerText = "Status: Healthy";
+    status.className = "status green";
+  }
+  else if (temp < 80 && vibration < 1.5) {
+    status.innerText = "Status: Warning";
+    status.className = "status yellow";
+  }
+  else {
+    status.innerText = "Status: Critical";
+    status.className = "status red";
+  }
+}
+</script>
+
+</head>
+<body>
+
+<div id="dashboard">
+  <h3>Mini Lathe Digital Twin</h3>
+
+  <p><b>Temperature:</b> <span id="temp">35°C</span></p>
+  <p><b>Vibration:</b> <span id="vibration">0.3 g</span></p>
+
+  <div id="healthStatus" class="status green">
+    Status: Healthy
+  </div>
+
+  <button onclick="setNormal()">Normal</button>
+  <button onclick="setHighVibration()">High Vibration</button>
+  <button onclick="setOverheat()">Overheat</button>
+  <!-- NEW BUTTON -->
+  <button onclick="fetchRealtimeData()">Fetch Real-Time Data</button>
+</div>
+
+<a-scene
+  embedded
+  vr-mode-ui="enabled: false"
+  renderer="antialias:true; alpha:true"
+  arjs="sourceType: webcam; debugUIEnabled: false;">
+
+  <a-entity
+    id="latheModel"
+    gltf-model="desk_lathe_animated.glb"
+    animation-mixer
+    position="0.32 0 -3"
+    rotation="0 0 0"
+    scale="0.7 0.7 0.7"
+    drag-rotate>
+  </a-entity>
+
+  <a-entity camera scroll-zoom></a-entity>
+
+</a-scene>
+
+</body>
+</html>
