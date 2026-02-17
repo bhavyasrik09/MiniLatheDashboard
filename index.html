@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>PS2 - Hexagon Digital Twin</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
@@ -60,13 +61,22 @@
 
   // ================= FETCH REAL-TIME DATA ON BUTTON CLICK =================
   function fetchRealtimeData() {
-    db.ref("latheData/1").once("value").then(snapshot => {
-      const data = snapshot.val();
-      if (!data) return;
+    const tempElem = document.getElementById("temp");
+    const vibElem = document.getElementById("vibration");
+    const healthElem = document.getElementById("healthStatus");
+    const btn = event.target;
 
-      const tempElem = document.getElementById("temp");
-      const vibElem = document.getElementById("vibration");
-      const healthElem = document.getElementById("healthStatus");
+    // Instant visual feedback
+    btn.innerText = "Loading...";
+    btn.style.opacity = "0.7";
+
+    db.ref("latheData/1").get().then(snapshot => {
+      const data = snapshot.val();
+      if (!data) {
+        btn.innerText = "Real Data";
+        btn.style.opacity = "1";
+        return;
+      }
 
       const temp = parseFloat(data.temperature);
       const vibration = parseFloat(data.vibration);
@@ -86,46 +96,93 @@
       }
 
       updateVisuals();
-    }).catch(err => console.error("Error fetching data:", err));
+
+      // Reset button
+      btn.innerText = "Real Data";
+      btn.style.opacity = "1";
+    }).catch(err => {
+      console.error("Error fetching data:", err);
+      btn.innerText = "Real Data";
+      btn.style.opacity = "1";
+    });
   }
 </script>
 
 <style>
-body { margin:0; overflow:hidden; font-family:Arial; }
+body { margin:0; overflow:hidden; font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial; background: linear-gradient(180deg,#f6fafc,#eef6fb); }
 
+/* Dashboard */
 #dashboard {
   position:absolute;
   left:20px;
   top:20px;
-  width:280px;
-  background:white;
-  padding:20px;
-  border-radius:10px;
-  box-shadow:0 0 15px rgba(0,0,0,0.2);
+  width:320px;
+  background:linear-gradient(180deg, #ffffff, #fbfdff);
+  padding:18px;
+  border-radius:12px;
+  box-shadow:0 8px 24px rgba(13,38,59,0.12);
   z-index:10;
+  border: 1px solid rgba(15,49,77,0.04);
 }
+
+#dashboard h3{ margin:0 0 12px 0; font-weight:700; color:#0f3a5a; }
+
+.stats { display:flex; gap:8px; margin-top:8px; }
+.stat { flex:1; background:#f7fbff; padding:8px; border-radius:8px; text-align:center; border:1px solid rgba(15,49,77,0.03); }
+.stat b{ display:block; color:#0f3a5a; font-weight:600; }
+.stat span{ display:block; color:#2b556f; margin-top:4px; font-size:0.95rem; }
 
 .status {
   padding:8px;
-  margin-top:10px;
-  border-radius:5px;
+  margin-top:12px;
+  border-radius:6px;
   color:white;
   text-align:center;
-  font-weight:bold;
+  font-weight:600;
 }
 
-.green { background:green; }
-.yellow { background:orange; }
-.red { background:red; }
+.green { background:#2ecc71; }
+.yellow { background:#f39c12; }
+.red { background:#e74c3c; }
 
 button {
   width:100%;
-  padding:8px;
+  padding:10px;
   margin-top:10px;
   border:none;
-  border-radius:5px;
+  border-radius:8px;
   cursor:pointer;
-  font-weight:bold;
+  font-weight:700;
+  background:linear-gradient(180deg,#f0f6fb,#e8f1f8);
+  color:#0f3a5a;
+  transition:all 160ms ease;
+  box-shadow:0 4px 10px rgba(15,49,77,0.06);
+}
+button:hover{ transform:translateY(-2px); box-shadow:0 8px 18px rgba(15,49,77,0.09); }
+
+/* Top-right model selector */
+#modelSelector{
+  position:absolute;
+  top:18px;
+  right:18px;
+  z-index:12;
+  display:flex;
+  gap:8px;
+  background: rgba(255,255,255,0.98);
+  padding:8px;
+  border-radius:12px;
+  box-shadow:0 10px 30px rgba(13,38,59,0.08);
+  border:1px solid rgba(15,49,77,0.04);
+}
+
+#modelSelector button{ width:auto; padding:8px 14px; margin-top:0; background:transparent; box-shadow:none; border-radius:8px; font-weight:600; color:#0f3a5a; }
+#modelSelector button:hover{ background:#f0f6fb; }
+#modelSelector button.active{ background:linear-gradient(90deg,#106fa4,#0b93d5); color:#fff; box-shadow:0 8px 18px rgba(11,83,140,0.16); }
+
+/* small responsive tweak */
+@media (max-width:520px){
+  #dashboard{ left:10px; top:10px; width:280px; padding:14px; }
+  #modelSelector{ right:10px; top:10px; padding:6px; gap:6px; }
 }
 </style>
 
@@ -193,8 +250,11 @@ AFRAME.registerComponent('model-zoom', {
       let scale = model.getAttribute('scale');
       let newScale = scale.x - event.deltaY * 0.0005;
 
+      const minScale = parseFloat(model.dataset.minScale) || 0.001;
+      const maxScale = parseFloat(model.dataset.maxScale) || 10;
 
-      newScale = Math.max(0.3, Math.min(2.5, newScale));
+      newScale = Math.max(minScale, Math.min(maxScale, newScale));
+
       model.setAttribute('scale', `${newScale} ${newScale} ${newScale}`);
     }, { passive:false });
 
@@ -209,7 +269,12 @@ AFRAME.registerComponent('model-zoom', {
           let difference = lastDistance - distance;
           let scale = model.getAttribute('scale');
           let newScale = scale.x + difference * 0.002;
-          newScale = Math.max(0.3, Math.min(2.5, newScale));
+
+          const minScale = parseFloat(model.dataset.minScale) || 0.001;
+          const maxScale = parseFloat(model.dataset.maxScale) || 10;
+
+          newScale = Math.max(minScale, Math.min(maxScale, newScale));
+
           model.setAttribute('scale', `${newScale} ${newScale} ${newScale}`);
         }
 
@@ -292,10 +357,71 @@ function updateVisuals() {
     status.className = "status red";
   }
 }
+
+// ================= MODEL SWITCHER =================
+function showModel(type) {
+  const model = document.querySelector("#latheModel");
+  const specs = {
+    fan: {
+      gltf: "old_fan_motor.glb",
+      position: "0 0 -4",
+      rotation: "0 0 0",
+      scale: "0.0008 0.0008 0.0008",
+      minScale: "0.0002",
+      maxScale: "0.002"
+    },
+    lathe: {
+      gltf: "desk_lathe_animated.glb",
+      position: "0.32 0 -3",
+      rotation: "0 0 0",
+      scale: "0.7 0.7 0.7",
+      minScale: "0.4",
+      maxScale: "2.5"
+    },
+    pump: {
+      gltf: "water_pump.glb",
+      position: "0.32 0 -3",
+      rotation: "0 270 0",
+      scale: "2 2 2",
+      minScale: "0.8",
+      maxScale: "4"
+    }
+  };
+
+  const cfg = specs[type] || specs.fan;
+
+  model.setAttribute('gltf-model', cfg.gltf);
+  model.setAttribute('position', cfg.position);
+  model.setAttribute('rotation', cfg.rotation);
+  model.setAttribute('scale', cfg.scale);
+  model.setAttribute('animation-mixer', '');
+  // attach zoom limits to the element for model-zoom to use
+  model.dataset.minScale = cfg.minScale || '';
+  model.dataset.maxScale = cfg.maxScale || '';
+  // highlight active button
+  const buttons = document.querySelectorAll('#modelSelector button');
+  buttons.forEach(btn => {
+    const key = btn.textContent.trim().toLowerCase();
+    if (key === type) btn.classList.add('active'); else btn.classList.remove('active');
+  });
+}
+
+// set default model on load
+window.addEventListener('DOMContentLoaded', () => {
+  // default to lathe
+  showModel('lathe');
+});
 </script>
 
 </head>
 <body>
+
+<!-- Top-right model selector -->
+<div id="modelSelector">
+  <button onclick="showModel('lathe')">Lathe</button>
+  <button onclick="showModel('fan')">Fan</button>
+  <button onclick="showModel('pump')">Pump</button>
+</div>
 
 <div id="dashboard">
   <h3>Mini Lathe Digital Twin</h3>
@@ -310,8 +436,10 @@ function updateVisuals() {
   <button onclick="setNormal()">Normal</button>
   <button onclick="setHighVibration()">High Vibration</button>
   <button onclick="setOverheat()">Overheat</button>
-  <!-- NEW BUTTON -->
-  <button onclick="fetchRealtimeData()">Fetch Real-Time Data</button>
+  <!-- REAL DATA BUTTON -->
+  <button onclick="fetchRealtimeData()">Real Data</button>
+  <!-- Model selection buttons -->
+  <!-- moved: model selector is now top-right -->
 </div>
 
 <a-scene
@@ -322,11 +450,14 @@ function updateVisuals() {
 
   <a-entity
   id="latheModel"
-  gltf-model="desk_lathe_animated.glb"
+  gltf-model="old_fan_motor.glb"
   animation-mixer
-  position="0.32 0 -3"
+  position="0 0 -4"
+
   rotation="0 0 0"
-  scale="0.7 0.7 0.7"
+  scale="0.0008 0.0008 0.0008"
+
+
   drag-rotate
   model-zoom>
 </a-entity>
