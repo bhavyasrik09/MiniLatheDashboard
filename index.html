@@ -2,466 +2,250 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>PS2 - Hexagon Digital Twin</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>AR Live Fan Digital Twin</title>
 
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
 
-<!-- Firebase SDK (compat version) -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<!-- Firebase v10 -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-<script>
-  // ================= FIREBASE CONFIG =================
-  const firebaseConfig = {
-    apiKey: "AIzaSyCwYkwI7sJiWZc_UNv-hiUCYvWQ9Kac-pA",
-    authDomain: "minilathedigitaltwin.firebaseapp.com",
-    databaseURL: "https://minilathedigitaltwin-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "minilathedigitaltwin",
-    storageBucket: "minilathedigitaltwin.firebasestorage.app",
-    messagingSenderId: "117431183861",
-    appId: "1:117431183861:web:b798d793e20f064b8b18bc",
-    measurementId: "G-QBNC162995"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyDGW9FxKJ5sUhXw_lW4p2ncZw2qUhI5NvA",
+  authDomain: "motor-digital-twin.firebaseapp.com",
+  databaseURL: "https://motor-digital-twin-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "motor-digital-twin",
+  storageBucket: "motor-digital-twin.firebasestorage.app",
+  messagingSenderId: "100929182719",
+  appId: "1:100929182719:web:b7aeb33742e4d169f0a5ca"
+};
 
-  // Initialize Firebase
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
+const liveRef = ref(database, "raw/live");
 
-  // ================= READ DATA IN REAL-TIME =================
-  db.ref("latheData/1").on("value", snapshot => {
+let temperature = 0;
+let vibration = 0;
+let runtime = 0;
+
+onValue(liveRef, (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
 
-    const tempElem = document.getElementById("temp");
-    const vibElem = document.getElementById("vibration");
-    const healthElem = document.getElementById("healthStatus");
+    temperature = data.temperature ?? 0;
+    vibration = data.vibration ?? 0;
+    runtime = data.runtime_seconds ?? 0;
 
-    temp = parseFloat(data.temperature);
-    vibration = parseFloat(data.vibration);
+    document.getElementById("temp").innerText = temperature.toFixed(1);
+    document.getElementById("vib").innerText = vibration.toFixed(2);
+    document.getElementById("runtime").innerText = runtime;
 
-    tempElem.innerText = temp.toFixed(1) + "°C";
-    vibElem.innerText = vibration.toFixed(2) + " g";
+    updateStatus();
+    updateModelColor();
+});
 
-    if (data.healthstatus === "NORMAL") {
-      healthElem.innerText = "Status: Healthy";
-      healthElem.className = "status green";
-    } else if (data.healthstatus === "WARNING") {
-      healthElem.innerText = "Status: Warning";
-      healthElem.className = "status yellow";
-    } else {
-      healthElem.innerText = "Status: Critical";
-      healthElem.className = "status red";
+function updateStatus() {
+    const status = document.getElementById("status");
+
+    if (temperature > 90 || vibration > 3.0 || runtime > 5000) {
+        status.innerText = "CRITICAL";
+        status.style.background = "#ef4444";
     }
+    else if (temperature > 75 || vibration > 2.85 || runtime > 3000) {
+        status.innerText = "WARNING";
+        status.style.background = "#eab308";
+    }
+    else {
+        status.innerText = "NORMAL";
+        status.style.background = "#22c55e";
+    }
+}
 
-    updateVisuals();
-  });
-
-  // ================= FETCH REAL-TIME DATA ON BUTTON CLICK =================
-  function fetchRealtimeData() {
-    const tempElem = document.getElementById("temp");
-    const vibElem = document.getElementById("vibration");
-    const healthElem = document.getElementById("healthStatus");
-    const btn = event.target;
-
-    // Instant visual feedback
-    btn.innerText = "Loading...";
-    btn.style.opacity = "0.7";
-
-    db.ref("latheData/1").get().then(snapshot => {
-      const data = snapshot.val();
-      if (!data) {
-        btn.innerText = "Real Data";
-        btn.style.opacity = "1";
-        return;
-      }
-
-      const temp = parseFloat(data.temperature);
-      const vibration = parseFloat(data.vibration);
-
-      tempElem.innerText = temp.toFixed(1) + "°C";
-      vibElem.innerText = vibration.toFixed(2) + " g";
-
-      if (data.healthstatus === "NORMAL") {
-        healthElem.innerText = "Status: Healthy";
-        healthElem.className = "status green";
-      } else if (data.healthstatus === "WARNING") {
-        healthElem.innerText = "Status: Warning";
-        healthElem.className = "status yellow";
-      } else {
-        healthElem.innerText = "Status: Critical";
-        healthElem.className = "status red";
-      }
-
-      updateVisuals();
-
-      // Reset button
-      btn.innerText = "Real Data";
-      btn.style.opacity = "1";
-    }).catch(err => {
-      console.error("Error fetching data:", err);
-      btn.innerText = "Real Data";
-      btn.style.opacity = "1";
-    });
-  }
+/* Model color disabled */
+function updateModelColor() {
+    return;
+}
 </script>
 
 <style>
-body { margin:0; overflow:hidden; font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial; background: linear-gradient(180deg,#f6fafc,#eef6fb); }
+body { margin:0; overflow:hidden; font-family:Arial; }
 
-/* Dashboard */
+/* Mobile friendly dashboard */
 #dashboard {
   position:absolute;
-  left:20px;
-  top:20px;
-  width:320px;
-  background:linear-gradient(180deg, #ffffff, #fbfdff);
-  padding:18px;
-  border-radius:12px;
-  box-shadow:0 8px 24px rgba(13,38,59,0.12);
+  top:10px;
+  left:10px;
+  width:70vw;
+  max-width:260px;
+  background:rgba(0,0,0,0.85);
+  padding:12px;
+  border-radius:10px;
+  color:white;
   z-index:10;
-  border: 1px solid rgba(15,49,77,0.04);
+  font-size:14px;
 }
-
-#dashboard h3{ margin:0 0 12px 0; font-weight:700; color:#0f3a5a; }
-
-.stats { display:flex; gap:8px; margin-top:8px; }
-.stat { flex:1; background:#f7fbff; padding:8px; border-radius:8px; text-align:center; border:1px solid rgba(15,49,77,0.03); }
-.stat b{ display:block; color:#0f3a5a; font-weight:600; }
-.stat span{ display:block; color:#2b556f; margin-top:4px; font-size:0.95rem; }
 
 .status {
   padding:8px;
-  margin-top:12px;
-  border-radius:6px;
-  color:white;
-  text-align:center;
-  font-weight:600;
-}
-
-.green { background:#2ecc71; }
-.yellow { background:#f39c12; }
-.red { background:#e74c3c; }
-
-button {
-  width:100%;
-  padding:10px;
   margin-top:10px;
-  border:none;
-  border-radius:8px;
-  cursor:pointer;
-  font-weight:700;
-  background:linear-gradient(180deg,#f0f6fb,#e8f1f8);
-  color:#0f3a5a;
-  transition:all 160ms ease;
-  box-shadow:0 4px 10px rgba(15,49,77,0.06);
-}
-button:hover{ transform:translateY(-2px); box-shadow:0 8px 18px rgba(15,49,77,0.09); }
-
-/* Top-right model selector */
-#modelSelector{
-  position:absolute;
-  top:18px;
-  right:18px;
-  z-index:12;
-  display:flex;
-  gap:8px;
-  background: rgba(255,255,255,0.98);
-  padding:8px;
-  border-radius:12px;
-  box-shadow:0 10px 30px rgba(13,38,59,0.08);
-  border:1px solid rgba(15,49,77,0.04);
-}
-
-#modelSelector button{ width:auto; padding:8px 14px; margin-top:0; background:transparent; box-shadow:none; border-radius:8px; font-weight:600; color:#0f3a5a; }
-#modelSelector button:hover{ background:#f0f6fb; }
-#modelSelector button.active{ background:linear-gradient(90deg,#106fa4,#0b93d5); color:#fff; box-shadow:0 8px 18px rgba(11,83,140,0.16); }
-
-/* small responsive tweak */
-@media (max-width:520px){
-  #dashboard{ left:10px; top:10px; width:280px; padding:14px; }
-  #modelSelector{ right:10px; top:10px; padding:6px; gap:6px; }
+  text-align:center;
+  font-weight:bold;
+  border-radius:6px;
 }
 </style>
 
 <script>
-// ================= ROTATE (Mouse + Touch) =================
+// ================= PLAY ALL GLB ANIMATIONS =================
+AFRAME.registerComponent('play-all-animations', {
+  init: function () {
+    this.el.addEventListener('model-loaded', () => {
+      const mesh = this.el.getObject3D('mesh');
+      if (!mesh.animations || mesh.animations.length === 0) return;
+
+      const mixer = new THREE.AnimationMixer(mesh);
+      mesh.animations.forEach((clip) => {
+        mixer.clipAction(clip).play();
+      });
+
+      this.mixer = mixer;
+    });
+  },
+  tick: function (t, dt) {
+    if (this.mixer) this.mixer.update(dt / 1000);
+  }
+});
+
+// ================= DRAG ROTATION (Mouse + Touch) =================
 AFRAME.registerComponent('drag-rotate', {
   init: function () {
     this.isDragging = false;
+    this.velocityX = 0;
+    this.velocityY = 0;
     this.lastX = 0;
     this.lastY = 0;
 
-    const el = this.el;
-    const sceneEl = this.el.sceneEl;
+    const scene = this.el.sceneEl;
 
-    sceneEl.addEventListener('mousedown', (e) => {
+    // Mouse
+    scene.addEventListener('mousedown', e => {
       this.isDragging = true;
       this.lastX = e.clientX;
       this.lastY = e.clientY;
     });
-    sceneEl.addEventListener('mouseup', () => { this.isDragging = false; });
-    sceneEl.addEventListener('mousemove', (e) => {
+
+    scene.addEventListener('mouseup', () => this.isDragging = false);
+
+    scene.addEventListener('mousemove', e => {
       if (!this.isDragging) return;
-      const deltaX = e.clientX - this.lastX;
-      const deltaY = e.clientY - this.lastY;
-      el.object3D.rotation.y += deltaX * 0.01;
-      el.object3D.rotation.x += deltaY * 0.01;
+      this.velocityX = (e.clientX - this.lastX) * 0.01;
+      this.velocityY = (e.clientY - this.lastY) * 0.01;
       this.lastX = e.clientX;
       this.lastY = e.clientY;
     });
 
-    sceneEl.addEventListener('touchstart', (e) => {
+    // Touch
+    scene.addEventListener('touchstart', e => {
       if (e.touches.length === 1) {
         this.isDragging = true;
         this.lastX = e.touches[0].clientX;
         this.lastY = e.touches[0].clientY;
       }
-    }, { passive: false });
+    });
 
-    sceneEl.addEventListener('touchend', () => { this.isDragging = false; });
+    scene.addEventListener('touchend', () => this.isDragging = false);
 
-    sceneEl.addEventListener('touchmove', (e) => {
+    scene.addEventListener('touchmove', e => {
       if (!this.isDragging || e.touches.length !== 1) return;
-      const touch = e.touches[0];
-      const deltaX = touch.clientX - this.lastX;
-      const deltaY = touch.clientY - this.lastY;
-      el.object3D.rotation.y += deltaX * 0.01;
-      el.object3D.rotation.x += deltaY * 0.01;
-      this.lastX = touch.clientX;
-      this.lastY = touch.clientY;
-      e.preventDefault();
-    }, { passive: false });
+      this.velocityX = (e.touches[0].clientX - this.lastX) * 0.01;
+      this.velocityY = (e.touches[0].clientY - this.lastY) * 0.01;
+      this.lastX = e.touches[0].clientX;
+      this.lastY = e.touches[0].clientY;
+    });
+  },
+
+  tick: function () {
+    this.el.object3D.rotation.y += this.velocityX;
+    this.el.object3D.rotation.x += this.velocityY;
+    this.velocityX *= 0.95;
+    this.velocityY *= 0.95;
   }
 });
 
-// ================= ZOOM =================
-// ================= MODEL ZOOM (FIXED FOR AR) =================
+// ================= SMOOTH ZOOM (Mouse + Pinch) =================
 AFRAME.registerComponent('model-zoom', {
   init: function () {
     const model = this.el;
+    let targetScale = 0.0008;
     let lastDistance = null;
 
-    // Laptop scroll
-    window.addEventListener('wheel', function (event) {
-      event.preventDefault();
-      let scale = model.getAttribute('scale');
-      let newScale = scale.x - event.deltaY * 0.0005;
-
-      const minScale = parseFloat(model.dataset.minScale) || 0.001;
-      const maxScale = parseFloat(model.dataset.maxScale) || 10;
-
-      newScale = Math.max(minScale, Math.min(maxScale, newScale));
-
-      model.setAttribute('scale', `${newScale} ${newScale} ${newScale}`);
+    // Mouse wheel
+    window.addEventListener('wheel', e => {
+      e.preventDefault();
+      targetScale -= e.deltaY * 0.0005;
+      targetScale = Math.max(0.0002, Math.min(0.002, targetScale));
     }, { passive:false });
 
-    // Mobile pinch
-    window.addEventListener('touchmove', function (e) {
+    // Pinch zoom
+    window.addEventListener('touchmove', e => {
       if (e.touches.length === 2) {
-        let dx = e.touches[0].clientX - e.touches[1].clientX;
-        let dy = e.touches[0].clientY - e.touches[1].clientY;
-        let distance = Math.sqrt(dx*dx + dy*dy);
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const distance = Math.sqrt(dx*dx + dy*dy);
 
         if (lastDistance) {
-          let difference = lastDistance - distance;
-          let scale = model.getAttribute('scale');
-          let newScale = scale.x + difference * 0.002;
-
-          const minScale = parseFloat(model.dataset.minScale) || 0.001;
-          const maxScale = parseFloat(model.dataset.maxScale) || 10;
-
-          newScale = Math.max(minScale, Math.min(maxScale, newScale));
-
-          model.setAttribute('scale', `${newScale} ${newScale} ${newScale}`);
+          targetScale += (distance - lastDistance) * 0.00001;
+          targetScale = Math.max(0.0002, Math.min(0.002, targetScale));
         }
 
         lastDistance = distance;
       }
-    }, { passive:false });
+    });
 
-    window.addEventListener('touchend', function () {
+    window.addEventListener('touchend', () => {
       lastDistance = null;
     });
+
+    this.tick = function () {
+      const scale = model.getAttribute('scale').x;
+      const newScale = THREE.MathUtils.lerp(scale, targetScale, 0.1);
+      model.setAttribute('scale', `${newScale} ${newScale} ${newScale}`);
+    };
   }
-});
-
-// ================= DIGITAL TWIN LOGIC =================
-let temp = 35;
-let vibration = 0.3;
-let targetTemp = 35;
-let targetVibration = 0.3;
-let simulationInterval = null;
-
-function setNormal() {
-  targetTemp = 40;
-  targetVibration = 0.5;
-  startSimulation();
-}
-
-function setHighVibration() {
-  targetTemp = 55;
-  targetVibration = 1.8;
-  startSimulation();
-}
-
-function setOverheat() {
-  targetTemp = 90;
-  targetVibration = 1.2;
-  startSimulation();
-}
-
-function startSimulation() {
-  if (simulationInterval) clearInterval(simulationInterval);
-
-  simulationInterval = setInterval(() => {
-    temp += (targetTemp - temp) * 0.05;
-    vibration += (targetVibration - vibration) * 0.05;
-
-    document.getElementById("temp").innerText = temp.toFixed(1) + "°C";
-    document.getElementById("vibration").innerText = vibration.toFixed(2) + " g";
-
-    updateVisuals();
-
-    if (Math.abs(temp - targetTemp) < 0.1 &&
-        Math.abs(vibration - targetVibration) < 0.05) {
-      clearInterval(simulationInterval);
-    }
-
-  }, 100);
-}
-
-function updateVisuals() {
-  let status = document.getElementById("healthStatus");
-  let model = document.querySelector("#latheModel");
-
-  let healthFactor = Math.min(1, (temp - 35) / 60);
-  let r = Math.floor(255 * healthFactor);
-  let g = Math.floor(255 * (1 - healthFactor));
-  let color = `rgb(${r},${g},0)`;
-
-  model.setAttribute("material", "color", color);
-
-  if (temp < 60 && vibration < 0.8) {
-    status.innerText = "Status: Healthy";
-    status.className = "status green";
-  }
-  else if (temp < 80 && vibration < 1.5) {
-    status.innerText = "Status: Warning";
-    status.className = "status yellow";
-  }
-  else {
-    status.innerText = "Status: Critical";
-    status.className = "status red";
-  }
-}
-
-// ================= MODEL SWITCHER =================
-function showModel(type) {
-  const model = document.querySelector("#latheModel");
-  const specs = {
-    fan: {
-      gltf: "old_fan_motor.glb",
-      position: "0 0 -4",
-      rotation: "0 0 0",
-      scale: "0.0008 0.0008 0.0008",
-      minScale: "0.0002",
-      maxScale: "0.002"
-    },
-    lathe: {
-      gltf: "desk_lathe_animated.glb",
-      position: "0.32 0 -3",
-      rotation: "0 0 0",
-      scale: "0.7 0.7 0.7",
-      minScale: "0.4",
-      maxScale: "2.5"
-    },
-    pump: {
-      gltf: "water_pump.glb",
-      position: "0.32 0 -3",
-      rotation: "0 270 0",
-      scale: "2 2 2",
-      minScale: "0.8",
-      maxScale: "4"
-    }
-  };
-
-  const cfg = specs[type] || specs.fan;
-
-  model.setAttribute('gltf-model', cfg.gltf);
-  model.setAttribute('position', cfg.position);
-  model.setAttribute('rotation', cfg.rotation);
-  model.setAttribute('scale', cfg.scale);
-  model.setAttribute('animation-mixer', '');
-  // attach zoom limits to the element for model-zoom to use
-  model.dataset.minScale = cfg.minScale || '';
-  model.dataset.maxScale = cfg.maxScale || '';
-  // highlight active button
-  const buttons = document.querySelectorAll('#modelSelector button');
-  buttons.forEach(btn => {
-    const key = btn.textContent.trim().toLowerCase();
-    if (key === type) btn.classList.add('active'); else btn.classList.remove('active');
-  });
-}
-
-// set default model on load
-window.addEventListener('DOMContentLoaded', () => {
-  // default to lathe
-  showModel('lathe');
 });
 </script>
-
 </head>
+
 <body>
 
-<!-- Top-right model selector -->
-<div id="modelSelector">
-  <button onclick="showModel('lathe')">Lathe</button>
-  <button onclick="showModel('fan')">Fan</button>
-  <button onclick="showModel('pump')">Pump</button>
-</div>
-
 <div id="dashboard">
-  <h3>Mini Lathe Digital Twin</h3>
-
-  <p><b>Temperature:</b> <span id="temp">35°C</span></p>
-  <p><b>Vibration:</b> <span id="vibration">0.3 g</span></p>
-
-  <div id="healthStatus" class="status green">
-    Status: Healthy
-  </div>
-
-  <button onclick="setNormal()">Normal</button>
-  <button onclick="setHighVibration()">High Vibration</button>
-  <button onclick="setOverheat()">Overheat</button>
-  <!-- REAL DATA BUTTON -->
-  <button onclick="fetchRealtimeData()">Real Data</button>
-  <!-- Model selection buttons -->
-  <!-- moved: model selector is now top-right -->
+  <h3>Fan Motor - Live</h3>
+  <p>Temperature: <b><span id="temp">--</span> °C</b></p>
+  <p>Vibration: <b><span id="vib">--</span></b></p>
+  <p>Runtime: <b><span id="runtime">--</span> sec</b></p>
+  <div id="status" class="status">NORMAL</div>
 </div>
 
 <a-scene
   embedded
-  vr-mode-ui="enabled: false"
+  vr-mode-ui="enabled:false"
   renderer="antialias:true; alpha:true"
-  arjs="sourceType: webcam; debugUIEnabled: false;">
+  arjs="sourceType:webcam; debugUIEnabled:false;">
 
   <a-entity
-  id="latheModel"
-  gltf-model="old_fan_motor.glb"
-  animation-mixer
-  position="0 0 -4"
-
-  rotation="0 0 0"
-  scale="0.0008 0.0008 0.0008"
-
-
-  drag-rotate
-  model-zoom>
-</a-entity>
-
+    id="fanModel"
+    gltf-model="old_fan_motor.glb"
+    animation-mixer
+    play-all-animations
+    position="0 0 -4"
+    rotation="0 0 0"
+    scale="0.0008 0.0008 0.0008"
+    drag-rotate
+    model-zoom>
+  </a-entity>
 
   <a-entity camera></a-entity>
 
